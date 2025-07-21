@@ -1,0 +1,39 @@
+# Node modules
+node_modules/
+npm-debug.log*
+
+# Build outputs
+dist/
+.angular/
+coverage/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Git
+.git/
+.gitignore
+
+# Docker
+Dockerfile*
+.dockerignore
+
+# Testing
+karma.conf.js
+*.spec.ts
+e2e/
+
+# Documentation
+README.md
+*.md
+
+# Configuration files that shouldn't be in container
+.editorconfig
+.env*

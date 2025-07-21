@@ -1,0 +1,137 @@
+<div class="min-h-screen bg-gray-50">
+    <!-- Header -->
+    <header class="bg-white shadow-sm">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center py-6">
+                <div>
+                    <h1 class="text-3xl font-bold text-gray-900">Dashboard</h1>
+                    <p class="text-gray-600">Welcome to your secure area</p>
+                </div>
+                <button
+                    (click)="logout()"
+                    class="bg-red-600 hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-lg transition duration-200">
+                    Sign Out
+                </button>
+            </div>
+
+            <!-- Navigation Tabs -->
+            <div class="border-b border-gray-200">
+                <nav class="-mb-px flex space-x-8">
+                    <a
+                        routerLink="monitoring"
+                        routerLinkActive="border-blue-500 text-blue-600"
+                        class="border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors duration-200">
+                        <div class="flex items-center space-x-2">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    stroke-width="2"
+                                    d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                            </svg>
+                            <span>Monitoring</span>
+                        </div>
+                    </a>
+
+                    <!-- Archiving tab - only show if user has permission -->
+                    <a
+                        *ngIf="canAccessArchiving"
+                        routerLink="archiving"
+                        routerLinkActive="border-blue-500 text-blue-600"
+                        class="border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors duration-200">
+                        <div class="flex items-center space-x-2">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    stroke-width="2"
+                                    d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5a2 2 0 01-2 2z"></path>
+                            </svg>
+                            <span>Archiving</span>
+                            <span class="ml-1 px-2 py-1 text-xs bg-green-100 text-green-800 rounded-full">Admin</span>
+                        </div>
+                    </a>
+
+                    <!-- Show access denied message for archiving if user doesn't have permission -->
+                    <div
+                        *ngIf="!canAccessArchiving"
+                        class="border-transparent text-gray-400 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm cursor-not-allowed"
+                        title="You don't have permission to access archiving">
+                        <div class="flex items-center space-x-2">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    stroke-width="2"
+                                    d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
+                            </svg>
+                            <span>Archiving</span>
+                            <span class="ml-1 px-2 py-1 text-xs bg-red-100 text-red-800 rounded-full">Restricted</span>
+                        </div>
+                    </div>
+                </nav>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+        <!-- User Info Card (show only on main dashboard) -->
+        <div class="bg-white overflow-hidden shadow-lg rounded-lg mb-6" *ngIf="userInfo">
+            <div class="px-4 py-5 sm:p-6">
+                <h3 class="text-lg font-medium text-gray-900 mb-4">Welcome, {{ userInfo.name || userInfo.username || 'User' }}!</h3>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div class="bg-blue-50 p-4 rounded-lg">
+                        <dt class="text-sm font-medium text-blue-600">Email</dt>
+                        <dd class="mt-1 text-sm text-gray-900">{{ userInfo.username || userInfo.localAccountId || 'Not available' }}</dd>
+                    </div>
+                    <div class="bg-green-50 p-4 rounded-lg">
+                        <dt class="text-sm font-medium text-green-600">Account Type</dt>
+                        <dd class="mt-1 text-sm text-gray-900">Microsoft Azure AD</dd>
+                    </div>
+                    <div class="bg-purple-50 p-4 rounded-lg">
+                        <dt class="text-sm font-medium text-purple-600">Access Level</dt>
+                        <dd class="mt-1 text-sm text-gray-900">
+                            <span
+                                class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
+                                [class]="canAccessArchiving ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'">
+                                {{ canAccessArchiving ? 'Admin' : 'Standard' }}
+                            </span>
+                        </dd>
+                    </div>
+                </div>
+
+                <!-- Show user roles and permissions if available -->
+                <div
+                    *ngIf="detailedUserInfo && (detailedUserInfo.roles.length > 0 || detailedUserInfo.permissions.length > 0)"
+                    class="mt-4 pt-4 border-t border-gray-200">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div *ngIf="detailedUserInfo.roles.length > 0" class="bg-indigo-50 p-3 rounded-lg">
+                            <dt class="text-sm font-medium text-indigo-600 mb-2">Roles</dt>
+                            <dd class="flex flex-wrap gap-1">
+                                <span
+                                    *ngFor="let role of detailedUserInfo.roles"
+                                    class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
+                                    {{ role }}
+                                </span>
+                            </dd>
+                        </div>
+                        <div *ngIf="detailedUserInfo.permissions.length > 0" class="bg-orange-50 p-3 rounded-lg">
+                            <dt class="text-sm font-medium text-orange-600 mb-2">Permissions</dt>
+                            <dd class="flex flex-wrap gap-1">
+                                <span
+                                    *ngFor="let permission of detailedUserInfo.permissions"
+                                    class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+                                    {{ permission }}
+                                </span>
+                            </dd>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Router Outlet for Child Components -->
+        <router-outlet></router-outlet>
+    </main>
+</div>

@@ -1,0 +1,16 @@
+apiVersion: v2
+name: sso-test
+description: Angular SSO Test Application Helm chart
+type: application
+version: 0.1.0
+appVersion: '1.0.0'
+keywords:
+    - angular
+    - frontend
+    - sso
+maintainers:
+    - name: Your Name
+      email: your.email@company.com
+home: https://github.com/yourorg/sso-test
+sources:
+    - https://github.com/yourorg/sso-test

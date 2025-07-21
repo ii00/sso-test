@@ -1,0 +1,175 @@
+name: Deploy Angular App to Azure Rancher
+
+on:
+    push:
+        branches: [main, develop]
+    pull_request:
+        branches: [main]
+
+env:
+    REGISTRY_NAME: acrssotest
+    CLUSTER_NAME: aks-rancher-cluster
+    CLUSTER_RESOURCE_GROUP: rg-rancher-sso-test
+    NAMESPACE: default
+    APP_NAME: sso-test
+
+jobs:
+    build-and-test:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: '20'
+                  cache: 'npm'
+
+            - name: Install dependencies
+              run: npm ci
+
+            - name: Lint code
+              run: npm run lint
+
+            - name: Run tests
+              run: npm run test -- --no-watch --no-progress --browsers=ChromeHeadless
+
+            - name: Build application
+              run: npm run build
+
+            - name: Upload build artifacts
+              uses: actions/upload-artifact@v4
+              with:
+                  name: dist-files
+                  path: dist/
+
+    build-and-push-image:
+        needs: build-and-test
+        runs-on: ubuntu-latest
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
+        outputs:
+            image-tag: ${{ steps.build-image.outputs.image-tag }}
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Download build artifacts
+              uses: actions/download-artifact@v4
+              with:
+                  name: dist-files
+                  path: dist/
+
+            - name: Azure Login
+              uses: azure/login@v1
+              with:
+                  creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+            - name: Get ACR login server
+              id: get-acr-server
+              run: |
+                  ACR_LOGIN_SERVER=$(az acr show --name ${{ env.REGISTRY_NAME }} --resource-group ${{ env.CLUSTER_RESOURCE_GROUP }} --query loginServer --output tsv)
+                  echo "acr-login-server=$ACR_LOGIN_SERVER" >> $GITHUB_OUTPUT
+
+            - name: Build and push Docker image
+              id: build-image
+              run: |
+                  # Generate image tag
+                  if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+                    IMAGE_TAG="latest"
+                  else
+                    IMAGE_TAG="${{ github.ref_name }}-${{ github.sha }}"
+                  fi
+
+                  echo "image-tag=$IMAGE_TAG" >> $GITHUB_OUTPUT
+
+                  # Login to ACR
+                  az acr login --name ${{ env.REGISTRY_NAME }}
+
+                  # Build and push image
+                  docker build -t ${{ steps.get-acr-server.outputs.acr-login-server }}/${{ env.APP_NAME }}:$IMAGE_TAG .
+                  docker push ${{ steps.get-acr-server.outputs.acr-login-server }}/${{ env.APP_NAME }}:$IMAGE_TAG
+
+    deploy-to-staging:
+        needs: [build-and-test, build-and-push-image]
+        runs-on: ubuntu-latest
+        if: github.ref == 'refs/heads/develop'
+        environment: staging
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Azure Login
+              uses: azure/login@v1
+              with:
+                  creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+            - name: Setup kubectl
+              uses: azure/setup-kubectl@v3
+
+            - name: Setup Helm
+              uses: azure/setup-helm@v3
+              with:
+                  version: '3.12.0'
+
+            - name: Get AKS credentials
+              run: |
+                  az aks get-credentials --resource-group ${{ env.CLUSTER_RESOURCE_GROUP }} --name ${{ env.CLUSTER_NAME }}
+
+            - name: Get ACR login server
+              id: get-acr-server
+              run: |
+                  ACR_LOGIN_SERVER=$(az acr show --name ${{ env.REGISTRY_NAME }} --resource-group ${{ env.CLUSTER_RESOURCE_GROUP }} --query loginServer --output tsv)
+                  echo "acr-login-server=$ACR_LOGIN_SERVER" >> $GITHUB_OUTPUT
+
+            - name: Deploy to staging
+              run: |
+                  helm upgrade --install ${{ env.APP_NAME }}-staging helm/sso-test \
+                    --namespace staging \
+                    --create-namespace \
+                    --set image.repository=${{ steps.get-acr-server.outputs.acr-login-server }}/${{ env.APP_NAME }} \
+                    --set image.tag=${{ needs.build-and-push-image.outputs.image-tag }} \
+                    --set ingress.hosts[0].host=${{ env.APP_NAME }}-staging.yourcompany.com \
+                    --set nameOverride=${{ env.APP_NAME }}-staging
+
+    deploy-to-production:
+        needs: [build-and-test, build-and-push-image]
+        runs-on: ubuntu-latest
+        if: github.ref == 'refs/heads/main'
+        environment: production
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Azure Login
+              uses: azure/login@v1
+              with:
+                  creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+            - name: Setup kubectl
+              uses: azure/setup-kubectl@v3
+
+            - name: Setup Helm
+              uses: azure/setup-helm@v3
+              with:
+                  version: '3.12.0'
+
+            - name: Get AKS credentials
+              run: |
+                  az aks get-credentials --resource-group ${{ env.CLUSTER_RESOURCE_GROUP }} --name ${{ env.CLUSTER_NAME }}
+
+            - name: Get ACR login server
+              id: get-acr-server
+              run: |
+                  ACR_LOGIN_SERVER=$(az acr show --name ${{ env.REGISTRY_NAME }} --resource-group ${{ env.CLUSTER_RESOURCE_GROUP }} --query loginServer --output tsv)
+                  echo "acr-login-server=$ACR_LOGIN_SERVER" >> $GITHUB_OUTPUT
+
+            - name: Deploy to production
+              run: |
+                  helm upgrade --install ${{ env.APP_NAME }} helm/sso-test \
+                    --namespace ${{ env.NAMESPACE }} \
+                    --set image.repository=${{ steps.get-acr-server.outputs.acr-login-server }}/${{ env.APP_NAME }} \
+                    --set image.tag=${{ needs.build-and-push-image.outputs.image-tag }} \
+                    --set ingress.hosts[0].host=${{ env.APP_NAME }}.yourcompany.com
+
+            - name: Verify deployment
+              run: |
+                  kubectl rollout status deployment/${{ env.APP_NAME }} -n ${{ env.NAMESPACE }} --timeout=300s
+                  kubectl get services -n ${{ env.NAMESPACE }}
+                  kubectl get ingress -n ${{ env.NAMESPACE }}
